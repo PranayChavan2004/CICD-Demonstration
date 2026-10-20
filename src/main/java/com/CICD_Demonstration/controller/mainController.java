@@ -11,6 +11,6 @@ public class mainController {
 
     @GetMapping
     public ResponseEntity<String> welcome() {
-        return ResponseEntity.ok("Hello, this is Spring Boot application!");
+        return ResponseEntity.ok("Hello, this is Spring Boot application and we are learning practical demonstration of CI-CD");
     }
 }
