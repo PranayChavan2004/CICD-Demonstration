@@ -1,0 +1,66 @@
+  name: CICD Demonstration
+
+  on:
+    push:
+      branches:
+        - main
+
+  env:
+    IMAGE_NAME: cicd-example-app
+
+
+  #build-deploy is job name job is the work github need to complete
+
+  #the job section consist of sequential actions need to done by github
+  #here we are created job: build-deploy which consist of steps to deploy project and make it live
+  #
+  #create jar file of springboot project -> create docker image of project -> push image to docker hub -> use aws ec2 instance -> make project live
+  jobs:
+    build-deploy:
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout Resource
+          uses: actions/checkout@v7.0.1
+
+        - name: Setting Up Java
+          uses: actions/setup-java@v6.1.0
+          with:
+            distribution: temurin
+            java-version: 21
+            cache: maven
+
+        - name: Build Jar
+          run: mvn clean package -DskipTests
+
+        - name: Building Docker Image
+          run: docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest .
+
+        - name: Login to Dockerhub
+          uses: docker/login-action@v4.6.0
+          with:
+            username: ${{ secrets.DOCKER_USERNAME }}
+            password: ${{ secrets.DOCKER_PASSWORD }}
+
+        - name: Push Image
+          run: docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+        - name: Deploy to EC2
+          uses: appleboy/ssh-action@v1.2.5
+          with:
+            host: ${{ secrets.EC2_HOST }}
+            username: ${{ secrets.EC2_USER }}
+            key: ${{ secrets.EC2_SSH_KEY }}
+            script: |
+                      docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+#                          we are given cicd-app as a docker container name
+#                          now when we are gonna make changes in main code and
+#                          code is pushed in the github main branch then we are
+#                          gonna stop and remove current running cicd-app container
+#                          and create new updated cicd-app container
+                      docker stop cicd-app || true
+                      docker rm cicd-app || true
+                      docker run -d --name cicd-app --restart unless-stopped -p 8080:8080 ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+                      docker image prune -f
+
